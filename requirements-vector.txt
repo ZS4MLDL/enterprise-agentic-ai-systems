@@ -1,0 +1,9 @@
+# Module 10/11 — Vector store dependencies
+# Windows: requires Microsoft C++ Build Tools before installing
+# Download: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# (select "Desktop development with C++" workload)
+#
+# Install: pip install -r requirements-vector.txt
+
+chromadb==0.5.23        # student mode vector store
+pgvector==0.3.6         # enterprise mode (used via sqlalchemy)

@@ -1,0 +1,5 @@
+# Module 04 enterprise mode — Postgres drivers
+# Install: pip install -r requirements-enterprise-db.txt
+
+asyncpg==0.30.0
+psycopg[binary]==3.2.3

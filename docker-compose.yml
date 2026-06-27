@@ -1,0 +1,94 @@
+version: "3.9"
+
+# Usage:
+#   docker compose --profile student up
+#   docker compose --profile enterprise up
+
+x-app-base: &app-base
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  env_file: .env
+  volumes:
+    - ./data:/app/data
+  depends_on: []
+
+services:
+
+  # ── Student profile ─────────────────────────────────────────────────────────
+  app-student:
+    <<: *app-base
+    profiles: [student]
+    environment:
+      MODE: student
+    ports:
+      - "8000:8000"
+
+  ui-student:
+    <<: *app-base
+    profiles: [student]
+    environment:
+      MODE: student
+    command: streamlit run app/ui/chat_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - app-student
+
+  # ── Enterprise profile ──────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    profiles: [enterprise]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aiuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aipassword}
+      POSTGRES_DB: ${POSTGRES_DB:-enterprise_ai}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiuser"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    profiles: [enterprise]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app-enterprise:
+    <<: *app-base
+    profiles: [enterprise]
+    environment:
+      MODE: enterprise
+      DATABASE_URL: postgresql://aiuser:aipassword@postgres:5432/enterprise_ai
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ui-enterprise:
+    <<: *app-base
+    profiles: [enterprise]
+    environment:
+      MODE: enterprise
+    command: streamlit run app/ui/chat_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - app-enterprise
+
+volumes:
+  postgres_data:

@@ -1,0 +1,5 @@
+# Module 13 — Observability dependencies
+# Install: pip install -r requirements-observability.txt
+
+langfuse==2.57.0
+opentelemetry-sdk==1.29.0
