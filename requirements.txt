@@ -16,8 +16,9 @@ pydantic-settings==2.6.1
 
 # LLM / AI  (M02+)
 openai==1.57.0
-langgraph==0.2.60
-langchain-core==0.3.25
+langgraph==1.2.6
+langgraph-checkpoint-sqlite==3.1.0
+langchain-core==1.4.8
 
 # Database  (M03+)
 sqlalchemy==2.0.36
