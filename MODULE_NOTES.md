@@ -1,10 +1,11 @@
-# Module 02 — LLMs, Reasoning, and Context Engineering
+# Module 03 — Building Agents as Stateful Systems + Docker
 
 ## What this module covers
-- How large language models work (just enough theory to reason about them)
-- Context windows, token budgeting, and why they matter for cost
-- Building a provider-agnostic LLM client that every future module reuses
-- Comparing models on quality, speed, and cost for the same prompt
+- What makes an agent stateful — conversation history, session identity, and turn tracking
+- How LangGraph builds a graph of nodes that each read and write to a shared state
+- How checkpointers persist agent state so conversations survive process restarts
+- Streaming responses token by token from a FastAPI endpoint to a Streamlit UI
+- Containerising the application with Docker
 
 ## What to do in this module
 
@@ -12,72 +13,85 @@
 ```bash
 git clone https://github.com/ZS4MLDL/enterprise-agentic-ai-systems.git
 cd enterprise-agentic-ai-systems
-git checkout module/02
+git checkout module/03
 python -m venv .venv
-.venv\Scripts\activate          # Windows
+.venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Open .env and set OPENROUTER_API_KEY=sk-or-...
+# add OPENROUTER_API_KEY to .env
+python scripts/init_db.py
 ```
 
-### Step 2 — Compare three models
+### Step 2 — Start the API server
 ```bash
-python scripts/compare_models.py
+uvicorn app.main:app --reload
 ```
-You will see the same prompt sent to GPT-4o Mini, GPT-4o, and Claude Sonnet.
-Output shows the response, token count, estimated cost, and response time for each.
-
-Try your own prompt:
+API is now live at http://localhost:8000. Test it:
 ```bash
-python scripts/compare_models.py --prompt "What is retrieval-augmented generation?"
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"session_id\": \"test-1\", \"message\": \"What is LangGraph?\"}"
 ```
 
-### Step 3 — Run the tests
+### Step 3 — Start the Streamlit UI (new terminal)
+```bash
+streamlit run app/ui/chat_app.py
+```
+Open http://localhost:8501. Chat with the agent. Click "New session" in the sidebar to start a fresh conversation.
+
+### Step 4 — Test resume after interrupt
+1. Send a message — note the session ID shown in the sidebar
+2. Stop the API server (Ctrl+C)
+3. Restart the server (`uvicorn app.main:app --reload`)
+4. Send another message in the same session — the agent remembers the previous conversation
+
+### Step 5 — Run the tests
 ```bash
 pytest tests/unit/ -v
 ```
-All 11 tests should pass. No API calls are made — responses are mocked.
+18 tests, all green. No real API or database calls are made.
 
-### Step 4 — Read the key files
-```
-app/config/settings.py          — central config, MODE switch, all env vars
-app/config/model_registry.py    — model tiers (cheap / default / powerful)
-app/common/llm_client.py        — the LLM wrapper every module uses
-app/common/cost_tracker.py      — token and cost logging per call
-```
+---
 
-## What changed from Module 01
-- `app/common/llm_client.py` is now a real working client, not a placeholder
-- `app/common/cost_tracker.py` is new — tracks tokens and estimated cost per call
-- `scripts/compare_models.py` is new — the main demo script for this module
-- Unit tests now cover retry logic, auth failure, and cost estimation
+## All files in this module
+
+| Status | File | What to explain to students |
+|---|---|---|
+| NEW | `app/agents/state.py` | Defines `AgentState` — the TypedDict that flows through every LangGraph node. `messages` uses `add_messages` so each node appends rather than replaces. |
+| NEW | `app/agents/checkpointer.py` | Returns `SqliteSaver` in student mode, `PostgresSaver` in enterprise mode. One function, one MODE check — this is the dual-mode pattern in action. |
+| NEW | `app/agents/research_agent.py` | The stateful agent. One node (`call_llm`) reads state, calls the LLM, returns updated state. `run()` and `stream()` are the two public entry points. |
+| UPDATED | `app/api/v1/chat.py` | Now wired to `research_agent.run()` and `research_agent.stream()`. Added `/chat/stream` endpoint that returns a `StreamingResponse`. |
+| UPDATED | `app/ui/chat_app.py` | Now streams responses chunk by chunk using `requests` streaming. The `▌` cursor shows the response is still arriving. |
+| NEW | `tests/unit/test_agent.py` | Tests for `call_llm` node, `run()`, resume simulation, and all three FastAPI endpoint scenarios (success, 401, 503). |
+| EXISTS | `app/agents/base.py` | `BaseAgent` ABC — not used by `research_agent` directly yet, but all specialist agents in later modules will inherit from it. |
+| EXISTS | `docker/Dockerfile` | Containerises the FastAPI app. Build: `docker build -f docker/Dockerfile -t enterprise-ai .` |
+| EXISTS | `app/common/llm_client.py` | Called inside `call_llm` node — this is the integration point from Module 02. |
+
+---
+
+## What changed from Module 02
+- The platform can now hold a stateful multi-turn conversation, not just answer one question
+- State is persisted to SQLite — conversations survive a server restart
+- The API has a streaming endpoint in addition to the standard JSON one
+- The Streamlit UI is now a real streaming chat interface
 
 ## Failure scenarios to test
 | Scenario | How to trigger | Expected behaviour |
 |---|---|---|
-| Invalid API key | Set a wrong key in .env | Clear error: "Invalid API key — check OPENROUTER_API_KEY" |
-| Rate limit (429) | Covered in unit tests | Retries up to 3 times with backoff, then raises RuntimeError |
+| LLM timeout | Set a very short timeout in llm_client.py or use a bad model name | RuntimeError after 3 retries — API returns 503 |
+| Invalid API key | Wrong key in .env | ValueError — API returns 401 with a clear message |
+| DB not initialised | Skip `python scripts/init_db.py` | SqliteSaver creates the file automatically on first call |
 
 ## Cost to watch
-Running `compare_models.py` once costs roughly $0.002 to $0.005 USD total
-across all three models. Safe to run many times during the session.
-
-## Key files introduced this module
-| File | Purpose |
-|---|---|
-| `app/common/llm_client.py` | Single entry point for all LLM calls — imported by every later module |
-| `app/common/cost_tracker.py` | Logs token usage and estimated cost per call |
-| `app/config/settings.py` | Reads all env vars, exposes MODE switch |
-| `app/config/model_registry.py` | Maps cheap/default/powerful tiers to model IDs |
-| `scripts/compare_models.py` | Side-by-side model comparison demo |
+Each conversation turn costs one LLM call. With `MODEL_DEFAULT` (GPT-4o) and a short prompt, expect roughly $0.001 to $0.005 per turn. Use `MODEL_CHEAP` in `.env` during development to reduce cost.
 
 ## Diagram (see PowerPoint slides)
-- How a transformer processes a prompt (simplified)
-- Context window diagram — what fits, what gets cut
-- Token cost comparison across the three models
-- llm_client.py call flow with retry and cost logging
+- LangGraph state machine — nodes, edges, state TypedDict
+- Checkpointer flow — how state is saved and loaded per thread_id
+- Request flow — Streamlit → FastAPI → Agent → LLM → back
+- Docker container diagram — what runs inside, what ports are exposed
 
 ## Discussion questions
-1. Why use a model tier (cheap/default/powerful) instead of calling a specific model by name everywhere?
-2. If GPT-4o Mini gives an acceptable answer for 95% of questions, what would you use the powerful tier for?
-3. The cost tracker estimates cost — it does not call the provider billing API. What could go wrong with this approach at scale?
+1. The agent uses `thread_id` to identify a conversation. What happens if two users accidentally share the same session ID?
+2. Why does `add_messages` matter in the state schema? What would happen if you used a plain list instead?
+3. In student mode the checkpointer writes to SQLite. What breaks first if 50 students run the same app on the same SQLite file?
