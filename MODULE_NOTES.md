@@ -38,44 +38,41 @@ pytest tests/unit/ -v
 ```
 All 11 tests should pass. No API calls are made — responses are mocked.
 
-### Step 4 — Read the key files
-```
-app/config/settings.py          — central config, MODE switch, all env vars
-app/config/model_registry.py    — model tiers (cheap / default / powerful)
-app/common/llm_client.py        — the LLM wrapper every module uses
-app/common/cost_tracker.py      — token and cost logging per call
-```
+### Step 4 — Read the key files (see table below)
 
-## What changed from Module 01
-- `app/common/llm_client.py` is now a real working client, not a placeholder
-- `app/common/cost_tracker.py` is new — tracks tokens and estimated cost per call
-- `scripts/compare_models.py` is new — the main demo script for this module
-- Unit tests now cover retry logic, auth failure, and cost estimation
+---
+
+## All files in this module
+
+| Status | File | What to explain to students |
+|---|---|---|
+| NEW | `app/config/settings.py` | Reads all env vars in one place. The `MODE` property is how the entire app switches between student and enterprise backends. No other file reads `os.environ` directly. |
+| NEW | `app/config/model_registry.py` | Maps logical tiers (cheap / default / powerful) to actual model IDs. Modules never hard-code a model string — they ask for a tier. |
+| NEW | `app/common/llm_client.py` | The single entry point for every LLM call in the platform. Handles retry with exponential backoff on 429 and 5xx errors, raises a clear `ValueError` on bad API key. |
+| NEW | `app/common/cost_tracker.py` | Records token usage and estimated cost after every LLM call. Logs to console in student mode, appends to `data/cost_log.jsonl` in enterprise mode. |
+| NEW | `scripts/compare_models.py` | Sends the same prompt to three models and prints response, tokens, cost, and time side by side. The main demo script for this session. |
+| NEW | `tests/unit/test_llm_client.py` | Unit tests for the LLM client. Covers: successful response, invalid API key, 429 retry, all-retries-exhausted. All responses are mocked — no real API calls. |
+| NEW | `tests/unit/test_settings.py` | Unit tests for settings. Covers: default student mode, enterprise mode switch, correct DB URL per mode. |
+| EXISTS | `.env.example` | Template — students copy this to `.env` and add their `OPENROUTER_API_KEY`. |
+| EXISTS | `requirements.txt` | Pinned dependencies. `openai`, `pydantic-settings`, `pytest` are the key ones for this module. |
+
+---
 
 ## Failure scenarios to test
 | Scenario | How to trigger | Expected behaviour |
 |---|---|---|
-| Invalid API key | Set a wrong key in .env | Clear error: "Invalid API key — check OPENROUTER_API_KEY" |
+| Invalid API key | Set a wrong key in `.env` | Clear error: "Invalid API key — check OPENROUTER_API_KEY" |
 | Rate limit (429) | Covered in unit tests | Retries up to 3 times with backoff, then raises RuntimeError |
 
 ## Cost to watch
 Running `compare_models.py` once costs roughly $0.002 to $0.005 USD total
 across all three models. Safe to run many times during the session.
 
-## Key files introduced this module
-| File | Purpose |
-|---|---|
-| `app/common/llm_client.py` | Single entry point for all LLM calls — imported by every later module |
-| `app/common/cost_tracker.py` | Logs token usage and estimated cost per call |
-| `app/config/settings.py` | Reads all env vars, exposes MODE switch |
-| `app/config/model_registry.py` | Maps cheap/default/powerful tiers to model IDs |
-| `scripts/compare_models.py` | Side-by-side model comparison demo |
-
 ## Diagram (see PowerPoint slides)
 - How a transformer processes a prompt (simplified)
 - Context window diagram — what fits, what gets cut
 - Token cost comparison across the three models
-- llm_client.py call flow with retry and cost logging
+- `llm_client.py` call flow with retry and cost logging
 
 ## Discussion questions
 1. Why use a model tier (cheap/default/powerful) instead of calling a specific model by name everywhere?
