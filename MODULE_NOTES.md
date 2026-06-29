@@ -19,6 +19,8 @@ python -m venv .venv
 pip install -r requirements.txt
 cp .env.example .env
 # add OPENROUTER_API_KEY to .env
+# if you get ModuleNotFoundError, run this first:
+$env:PYTHONPATH="."
 python scripts/init_db.py
 ```
 
