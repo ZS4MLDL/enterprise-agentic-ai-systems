@@ -1,5 +1,7 @@
-# Module 04 enterprise mode — Postgres drivers
-# Install: pip install -r requirements-enterprise-db.txt
+# Module 04 enterprise mode — Postgres drivers and checkpointer
+# Install when switching to MODE=enterprise
+# pip install -r requirements-enterprise-db.txt
 
 asyncpg==0.30.0
 psycopg[binary]==3.2.3
+langgraph-checkpoint-postgres==2.0.21
