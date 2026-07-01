@@ -60,6 +60,9 @@ pytest tests/unit/ -v
 ### Step 7 — Alembic reference
 See `docs/alembic_notes.md` for all migration commands you will need throughout the course.
 
+### Step 8 — Docker reference
+See `docs/docker_notes.md` for all Docker and Docker Compose commands for running the full stack in student or enterprise mode.
+
 ---
 
 ## All files in this module
@@ -74,6 +77,7 @@ See `docs/alembic_notes.md` for all migration commands you will need throughout 
 | NEW | `alembic/env.py` | Configured to read `DATABASE_URL` from settings — same migration file works for SQLite and Postgres. |
 | NEW | `alembic/versions/xxxx_create_*.py` | First migration — creates `conversation_sessions` and `audit_log` tables. |
 | NEW | `docs/alembic_notes.md` | Quick reference for all Alembic commands students will use throughout the course. |
+| NEW | `docs/docker_notes.md` | Quick reference for Docker and Docker Compose commands — student profile vs enterprise profile, troubleshooting, log viewing. |
 | NEW | `tests/unit/test_config_switch.py` | Confirms student and enterprise modes load different backends without any code change. |
 | NEW | `tests/unit/test_migrations.py` | Runs migrate-up, rollback, re-migrate against a temp SQLite file. Proves the migration is reversible. |
 | NEW | `tests/unit/test_health.py` | Tests health endpoint returns `ok` when DB is up and `degraded` when it is not. |
